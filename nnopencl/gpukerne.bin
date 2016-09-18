@@ -1,0 +1,1496 @@
+#define real float
+#define real4 float4
+#define real8 float8
+
+#define to_real4(_val) (real4)((_val).s0,(_val).s1,(_val).s2,(_val).s3)
+#define to_real8(_val) (real8)((_val).s0,(_val).s1,(_val).s2,(_val).s3,(_val).s4,(_val).s5,(_val).s6,(_val).s7)
+#define less8(_v1,_v2) 	\
+	(int8)(		\
+		(_v1).s0<(_v2).s0?1:0	\
+		,(_v1).s1<(_v2).s1?1:0	\
+		,(_v1).s2<(_v2).s2?1:0	\
+		,(_v1).s3<(_v2).s3?1:0	\
+		,(_v1).s4<(_v2).s4?1:0	\
+		,(_v1).s5<(_v2).s5?1:0	\
+		,(_v1).s6<(_v2).s6?1:0	\
+		,(_v1).s7<(_v2).s7?1:0	\
+	)	\
+/***/		
+#define greater8(_v1,_v2) 	\
+	(int8)(	\
+		(_v1).s0>(_v2).s0?1:0	\
+		,(_v1).s1>(_v2).s1?1:0	\
+		,(_v1).s2>(_v2).s2?1:0	\
+		,(_v1).s3>(_v2).s3?1:0	\
+		,(_v1).s4>(_v2).s4?1:0	\
+		,(_v1).s5>(_v2).s5?1:0	\
+		,(_v1).s6>(_v2).s6?1:0	\
+		,(_v1).s7>(_v2).s7?1:0	\
+	)	\
+/***/		
+#define less4(_v1,_v2) 	\
+	(int4)(		\
+		(_v1).s0<(_v2).s0?1:0	\
+		,(_v1).s1<(_v2).s1?1:0	\
+		,(_v1).s2<(_v2).s2?1:0	\
+		,(_v1).s3<(_v2).s3?1:0	\
+	)	\
+/***/		
+#define greater4(_v1,_v2) 	\
+	(int4)(	\
+		(_v1).s0>(_v2).s0?1:0	\
+		,(_v1).s1>(_v2).s1?1:0	\
+		,(_v1).s2>(_v2).s2?1:0	\
+		,(_v1).s3>(_v2).s3?1:0	\
+	)	\
+/***/		
+#define forward_half_tanh8(_w) \
+	(real8)(	\
+			tanh((_w).s0)*0.5f	\
+			,tanh((_w).s1)*0.5f	\
+			,tanh((_w).s2)*0.5f	\
+			,tanh((_w).s3)*0.5f	\
+			,tanh((_w).s4)*0.5f	\
+			,tanh((_w).s5)*0.5f	\
+			,tanh((_w).s6)*0.5f	\
+			,tanh((_w).s7)*0.5f	\
+		)	\
+/***/		
+#define backward_half_tanh8(_w,_dw) \
+	(real8)(	\
+			(1.0f-(_w).s0*(_w).s0)*0.5f*(_dw).s0	\
+			,(1.0f-(_w).s1*(_w).s1)*0.5f*(_dw).s1	\
+			,(1.0f-(_w).s2*(_w).s2)*0.5f*(_dw).s2	\
+			,(1.0f-(_w).s3*(_w).s3)*0.5f*(_dw).s3	\
+			,(1.0f-(_w).s4*(_w).s4)*0.5f*(_dw).s4	\
+			,(1.0f-(_w).s5*(_w).s5)*0.5f*(_dw).s5	\
+			,(1.0f-(_w).s6*(_w).s6)*0.5f*(_dw).s6	\
+			,(1.0f-(_w).s7*(_w).s7)*0.5f*(_dw).s7	\
+		)	\
+/***/	
+
+void gemm_calc(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real8* B
+	,uint lda
+	,uint ldb
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+
+	lda >>= 2;
+	ldb >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	B += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4) {
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		B += (ldb << 2);
+		/* ---------------------- */
+	}
+}
+
+void gemm_calc_relu(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real4* Res
+	,__global const real8* B
+	,uint lda
+	,uint ldr
+	,uint ldb
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real4 r0, r1, r2, r3;
+
+	lda >>= 2;
+	ldr >>= 2;
+	ldb >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	Res += (uint)get_global_id(1)*(ldr<<2);
+	B += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4) {
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* relu calc { */
+		r0 = Res[0];
+		r1 = Res[ldr];
+		r2 = Res[(ldr << 1)];
+		r3 = Res[mad24(3u, ldr, 0u)];
+
+		real4 zero = 0;
+		int4 rf = greater4(r0,zero);
+		a0 *= to_real4(rf);
+		rf = greater4(r1,zero);
+		a1 *= to_real4(rf);
+		rf = greater4(r2,zero);
+		a2 *= to_real4(rf);
+		rf = greater4(r3,zero);
+		a3 *= to_real4(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		Res += 1;
+		B += (ldb << 2);
+		/* ---------------------- */
+	}
+}
+
+void gemm_calc_relu1(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real8* B
+	,__global const real8* Res
+	,uint lda
+	,uint ldb
+	,uint ldr
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real8 r0, r1, r2, r3;
+
+	lda >>= 2;
+	ldb >>= 3;
+	ldr >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	B += (uint)get_global_id(0);
+	Res += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4) {
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* relu calc { */
+		r0 = Res[0];
+		r1 = Res[ldr];
+		r2 = Res[(ldr << 1)];
+		r3 = Res[mad24(3u, ldr, 0u)];
+
+		real8 zero = 0;
+		int8 rf = greater8(r0,zero);
+		b0 *= to_real8(rf);
+		rf = greater8(r1,zero);
+		b1 *= to_real8(rf);
+		rf = greater8(r2,zero);
+		b2 *= to_real8(rf);
+		rf = greater8(r3,zero);
+		b3 *= to_real8(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		B += (ldb << 2);
+		Res += (ldr << 2);
+		/* ---------------------- */
+	}
+}
+
+
+void gemm_calc_relu_dropout(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real4* Res
+	,__global const real4* rand_data
+	,__global const real8* B
+	,uint lda
+	,uint ldr
+	,uint ldrd
+	,uint ldb
+	,real drop_probability
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real4 r0, r1, r2, r3;
+	real4 rd0,rd1,rd2,rd3;
+
+	lda >>= 2;
+	ldr >>= 2;
+	ldrd >>= 2;
+	ldb >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	Res += (uint)get_global_id(1)*(ldr<<2);
+	rand_data += (uint)get_global_id(1)*(ldrd<<2);
+	B += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4)
+	{
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* relu and dropout  calc { */
+		r0 = Res[0];
+		r1 = Res[ldr];
+		r2 = Res[(ldr << 1)];
+		r3 = Res[mad24(3u, ldr, 0u)];
+
+		rd0 = rand_data[0];
+		rd1 = rand_data[ldrd];
+		rd2 = rand_data[(ldrd << 1)];
+		rd3 = rand_data[mad24(3u, ldrd, 0u)];
+
+		real4 zero = 0;
+		real4 drop_prob = drop_probability;
+		int4 rf = greater4(r0,zero);
+		rf &= greater4(rd0,drop_prob);
+		a0 *= to_real4(rf);
+		rf = greater4(r1,zero);
+		rf &= greater4(rd1,drop_prob);
+		a1 *= to_real4(rf);
+		rf = greater4(r2,zero);
+		rf &= greater4(rd2,drop_prob);
+		a2 *= to_real4(rf);
+		rf = greater4(r3,zero);
+		rf &= greater4(rd3,drop_prob);
+		a3 *= to_real4(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		Res += 1;
+		rand_data += 1;
+		B += (ldb << 2);
+		/* ---------------------- */
+	}
+}
+
+void gemm_calc_relu_dropout1(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real8* B
+	,__global const real8* Res
+	,__global const real8* rand_data
+	,uint lda
+	,uint ldb
+	,uint ldr
+	,uint ldrd
+	,real drop_probability
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real8 r0, r1, r2, r3;
+	real8 rd0,rd1,rd2,rd3;
+
+	lda >>= 2;
+	ldb >>= 3;
+	ldr >>= 3;
+	ldrd >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	B += (uint)get_global_id(0);
+	Res += (uint)get_global_id(0);
+	rand_data += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4)
+	{
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* relu and dropout  calc {*/
+		r0 = Res[0];
+		r1 = Res[ldr];
+		r2 = Res[(ldr << 1)];
+		r3 = Res[mad24(3u, ldr, 0u)];
+
+		rd0 = rand_data[0];
+		rd1 = rand_data[ldrd];
+		rd2 = rand_data[(ldrd << 1)];
+		rd3 = rand_data[mad24(3u, ldrd, 0u)];
+
+		real8 zero = 0;
+		real8 drop_prob = drop_probability;
+		int8 rf = greater8(r0,zero);
+		rf &= greater8(rd0,drop_prob);
+		b0 *= to_real8(rf);
+		rf = greater8(r1,zero);
+		rf &= greater8(rd1,drop_prob);
+		b1 *= to_real8(rf);
+		rf = greater8(r2,zero);
+		rf &= greater8(rd2,drop_prob);
+		b2 *= to_real8(rf);
+		rf = greater8(r3,zero);
+		rf &= greater8(rd3,drop_prob);
+		b3 *= to_real8(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		B += (ldb << 2);
+		Res += (ldr << 2);
+		rand_data += (ldrd << 2);
+		/* ---------------------- */
+	}
+}
+
+
+void gemm_calc_dropout(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real4* rand_data
+	,__global const real8* B
+	,uint lda
+	,uint ldrd
+	,uint ldb
+	,real drop_probability
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real4 rd0,rd1,rd2,rd3;
+
+	lda >>= 2;
+	ldrd >>= 2;
+	ldb >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	rand_data += (uint)get_global_id(1)*(ldrd<<2);
+	B += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4) {
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* dropout calc { */
+		rd0 = rand_data[0];
+		rd1 = rand_data[ldrd];
+		rd2 = rand_data[(ldrd << 1)];
+		rd3 = rand_data[mad24(3u, ldrd, 0u)];
+
+		real4 drop_prob = drop_probability;
+		int4 rf = greater4(rd0,drop_prob);
+		a0 *= to_real4(rf);
+		rf = greater4(rd1,drop_prob);
+		a1 *= to_real4(rf);
+		rf = greater4(rd2,drop_prob);
+		a2 *= to_real4(rf);
+		rf = greater4(rd3,drop_prob);
+		a3 *= to_real4(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		rand_data += 1;
+		B += (ldb << 2);
+		/* ---------------------- */
+	}
+}
+
+
+void gemm_calc_dropout1(
+	uint M
+	,uint N
+	,uint K
+	,__global const real4* A
+	,__global const real8* B
+	,__global const real8* rand_data
+	,uint lda
+	,uint ldb
+	,uint ldrd
+	,real drop_probability
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real4 a0, a1, a2, a3;
+	real8 b0, b1, b2, b3;
+	real8 rd0,rd1,rd2,rd3;
+
+	lda >>= 2;
+	ldb >>= 3;
+	ldrd >>= 3;
+	A += (uint)get_global_id(1)*(lda<<2);
+	B += (uint)get_global_id(0);
+	rand_data += (uint)get_global_id(0);
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+
+	*c0 = 0;
+	*c1 = 0;
+	*c2 = 0;
+	*c3 = 0;
+
+	for (uint k1 = 0; k1 < K; k1 += 4) {
+		/* -- Tiles multiplier -- */
+		b0 = B[0];
+		b1 = B[ldb];
+		b2 = B[(ldb << 1)];
+		b3 = B[mad24(3u, ldb, 0u)];
+
+		a0 = A[0];
+		a1 = A[lda];
+		a2 = A[(lda << 1)];
+		a3 = A[mad24(3u, lda, 0u)];
+
+		/* dropout calc { */
+		rd0 = rand_data[0];
+		rd1 = rand_data[ldrd];
+		rd2 = rand_data[(ldrd << 1)];
+		rd3 = rand_data[mad24(3u, ldrd, 0u)];
+
+		real8 drop_prob = drop_probability;
+		int8 rf = greater8(rd0,drop_prob);
+		b0 *= to_real8(rf);
+		rf = greater8(rd1,drop_prob);
+		b1 *= to_real8(rf);
+		rf = greater8(rd2,drop_prob);
+		b2 *= to_real8(rf);
+		rf = greater8(rd3,drop_prob);
+		b3 *= to_real8(rf);
+		/* } */
+
+		*c0 += b0 * a0.s0;
+		*c0 += b1 * a0.s1;
+		*c0 += b2 * a0.s2;
+		*c0 += b3 * a0.s3;
+
+		*c1 += b0 * a1.s0;
+		*c1 += b1 * a1.s1;
+		*c1 += b2 * a1.s2;
+		*c1 += b3 * a1.s3;
+
+		*c2 += b0 * a2.s0;
+		*c2 += b1 * a2.s1;
+		*c2 += b2 * a2.s2;
+		*c2 += b3 * a2.s3;
+
+		*c3 += b0 * a3.s0;
+		*c3 += b1 * a3.s1;
+		*c3 += b2 * a3.s2;
+		*c3 += b3 * a3.s3;
+
+		A += 1;
+		B += (ldb << 2);
+		rand_data += (ldrd << 2);
+		/* ---------------------- */
+	}
+}
+
+void gemm_save(
+	__global real8 *C
+	,uint ldc
+	,uint4* coord
+	,const real8* c0
+	,const real8* c1
+	,const real8* c2
+	,const real8* c3
+	)
+{
+	__global real8 *pC = C + (((*coord).y * ldc + (*coord).x)>>3);
+	pC[0] = *c0;
+	pC[(ldc >> 3)] = *c1;
+	pC[(ldc >> 2)] = *c2;
+	pC[mad24(3u, (ldc >> 3), 0u)] = *c3;
+}
+
+void relu(
+	real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	real8 zero = 0;
+	int8 m = greater8(*c0,zero);
+	*c0 *= to_real8(m);
+	m = greater8(*c1,zero);
+	*c1 *= to_real8(m);
+	m = greater8(*c2,zero);
+	*c2 *= to_real8(m);
+	m = greater8(*c3,zero);
+	*c3 *= to_real8(m);
+}
+
+void backward_relu(
+	const real8* res_w0
+	,const real8* res_w1
+	,const real8* res_w2
+	,const real8* res_w3
+	,const real8* res_dw0
+	,const real8* res_dw1
+	,const real8* res_dw2
+	,const real8* res_dw3
+	,real8* src_dw0
+	,real8* src_dw1
+	,real8* src_dw2
+	,real8* src_dw3
+	)
+{
+	real8 zero = 0;
+	*src_dw0 = to_real8(greater8(*res_w0,zero)) * (*res_dw0);
+	*src_dw1 = to_real8(greater8(*res_w1,zero)) * (*res_dw1);
+	*src_dw2 = to_real8(greater8(*res_w2,zero)) * (*res_dw2);
+	*src_dw3 = to_real8(greater8(*res_w3,zero)) * (*res_dw3);
+}
+
+
+void regression(
+	const real8* c0
+	,const real8* c1
+	,const real8* c2
+	,const real8* c3
+	,const uint4* coord
+	,__global const real8* Target
+	,__global const real8* TargetMask
+	,__global real8* DW
+	,uint ldt
+	,uint ldtm
+	,uint lddw
+	)
+{
+	__global const real8 *pT = Target + (((*coord).y * ldt + (*coord).x)>>3);
+	__global const real8* pTM = TargetMask + (((*coord).y * ldtm + (*coord).x)>>3);
+	__global real8* pDW = DW + (((*coord).y * lddw + (*coord).x)>>3);
+	
+	pDW[0] = (*c0 - pT[0])*pTM[0];
+	pDW[(lddw >> 3)] = (*c1 - pT[(ldt >> 3)])*pTM[(ldtm >> 3)];
+	pDW[(lddw >> 2)] = (*c2 - pT[(ldt >> 2)])*pTM[(ldtm >> 2)];
+	pDW[mad24(3u, (lddw >> 3), 0u)] = (*c3 - pT[mad24(3u, (ldt >> 3), 0u)])*pTM[mad24(3u, (ldtm >> 3), 0u)];
+
+}
+
+void dropout_run(
+	real DropProp
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	*c0 *= 1 - DropProp;
+	*c1 *= 1 - DropProp;
+	*c2 *= 1 - DropProp;
+	*c3 *= 1 - DropProp;
+}
+
+void dropout_train(
+	__global const real8* _rand_data
+	,uint _ldrd
+	,real _drop_probability
+	,uint4* _coord
+	,real8* _c0
+	,real8* _c1
+	,real8* _c2
+	,real8* _c3
+	)
+{
+	__global const real8 *pRD = _rand_data + (((*_coord).y * _ldrd + (*_coord).x)>>3);
+	real8 rd0,rd1,rd2,rd3;
+	rd0 = pRD[0];
+	rd1 = pRD[(_ldrd >> 3)];
+	rd2 = pRD[(_ldrd >> 2)];
+	rd3 = pRD[mad24(3u, (_ldrd >> 3), 0u)];
+	real8 drop_probability = _drop_probability;
+	int8 m = greater8(rd0,drop_probability);
+	*_c0 *= to_real8(m);
+	m = greater8(rd1,drop_probability);
+	*_c1 *= to_real8(m);
+	m = greater8(rd2,drop_probability);
+	*_c2 *= to_real8(m);
+	m = greater8(rd3,drop_probability);
+	*_c3 *= to_real8(m);
+}
+
+void load(
+	__global const real8 *C
+	,uint ldc
+	,uint4* coord
+	,real8* c0
+	,real8* c1
+	,real8* c2
+	,real8* c3
+	)
+{
+	(*coord).y = (uint)get_global_id(1)<<2;
+	(*coord).x = (uint)get_global_id(0)<<3;
+	__global const real8 *pC = C + (((*coord).y * ldc + (*coord).x)>>3);
+	*c0 = pC[0];
+	*c1 = pC[(ldc >> 3)];
+	*c2 = pC[(ldc >> 2)];
+	*c3 = pC[mad24(3u, (ldc >> 3), 0u)];
+}
+
+void save(
+	__global real8 *C
+	,uint ldc
+	,const uint4* coord
+	,const real8* c0
+	,const real8* c1
+	,const real8* c2
+	,const real8* c3
+	)
+{
+	__global real8 *pC = C + (((*coord).y * ldc + (*coord).x)>>3);
+	pC[0] = *c0;
+	pC[(ldc >> 3)] = *c1;
+	pC[(ldc >> 2)] = *c2;
+	pC[mad24(3u, (ldc >> 3), 0u)] = *c3;
+}
+
+void forward_half_tanh_for_data(
+	real8* w0
+	,real8* w1
+	,real8* w2
+	,real8* w3
+	)
+{
+	*w0 = forward_half_tanh8(*w0);
+	*w1 = forward_half_tanh8(*w1);
+	*w2 = forward_half_tanh8(*w2);
+	*w3 = forward_half_tanh8(*w3);
+}
+
+void backward_half_tanh(
+	const real8* res_w0
+	,const real8* res_w1
+	,const real8* res_w2
+	,const real8* res_w3
+	,const real8* res_dw0
+	,const real8* res_dw1
+	,const real8* res_dw2
+	,const real8* res_dw3
+	,real8* src_dw0
+	,real8* src_dw1
+	,real8* src_dw2
+	,real8* src_dw3
+	)
+{
+	*src_dw0 = backward_half_tanh8(*res_w0,*res_dw0);
+	*src_dw1 = backward_half_tanh8(*res_w1,*res_dw1);
+	*src_dw2 = backward_half_tanh8(*res_w2,*res_dw2);
+	*src_dw3 = backward_half_tanh8(*res_w3,*res_dw3);
+}
+
+/******************************************************************************
+** kernels 
+******************************************************************************/ 
+
+__kernel void copy(
+	__global const real* _src
+	,__global real* _dest
+	)
+{
+	uint pos = get_global_id(0);
+	real val = _src[pos];
+	_dest[pos] = val;
+}
+
+__kernel void copy_mul(
+	__global const real* _src
+	,__global real* _dest
+	,real _k
+	)
+{
+	uint pos = get_global_id(0);
+	real val = _src[pos];
+	_dest[pos] = val*_k;
+}
+
+
+__kernel void add(
+	__global const real* _A
+	,__global real* _B
+	)
+{
+	uint pos = get_global_id(0);
+	real a = _A[pos];
+	real b = _B[pos];
+	b += a;
+	_B[pos] = b;
+}
+
+__kernel void set_last_column_to_ones(
+	uint _M	
+	,uint _N
+	,__global real* _A
+	,uint _lda
+	)
+{
+	uint y = get_global_id(0);
+	_A[y*_lda+_N-1] = 1;
+}
+
+__kernel void set_last_column_to_zero(
+	uint _M	
+	,uint _N
+	,__global real* _A
+	,uint _lda
+	)
+{
+	uint y = get_global_id(0);
+	_A[y*_lda+_N-1] = 0;
+}
+
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_regression(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global const real8* _target
+	,__global const real8* _target_mask
+	,__global real8* _result
+	,__global real8* _result_dw
+	,uint _ldi
+	,uint _ldf
+	,uint _ldt
+	,uint _ldtm
+	,uint _ldr
+	,uint _ldrdw
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	regression(&c0,&c1,&c2,&c3,&coord,_target,_target_mask,_result_dw,_ldt,_ldtm,_ldrdw);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_dw_fc_layer(
+	uint _input_M
+	,uint _input_N
+	,uint _result_N
+	,__global const real4* _result_dw
+	,__global const real8* _filter_t
+	,__global real8* _input_dw
+	,uint _ldr_dw
+	,uint _ldf_t
+	,uint _ldi_dw
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_input_M,_input_N,_result_N,_result_dw,_filter_t,_ldr_dw,_ldf_t,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_input_dw,_ldi_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_dw_fc_layer_relu(
+	uint _input_M
+	,uint _input_N
+	,uint _result_N
+	,__global const real4* _result_dw
+	,__global const real4* _result
+	,__global const real8* _filter_t
+	,__global real8* _input_dw
+	,uint _ldr_dw
+	,uint _ldr
+	,uint _ldf_t
+	,uint _ldi_dw
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_relu(
+		_input_M,_input_N,_result_N
+		,_result_dw,_result,_filter_t
+		,_ldr_dw,_ldr,_ldf_t
+		,&coord,&c0,&c1,&c2,&c3
+		);
+	gemm_save(_input_dw,_ldi_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_dw_fc_layer_relu_dropout(
+	uint _input_M
+	,uint _input_N
+	,uint _result_N
+	,__global const real4* _result_dw
+	,__global const real4* _result
+	,__global const real8* _filter_t
+	,__global real8* _input_dw
+	,uint _ldr_dw
+	,uint _ldr
+	,uint _ldf_t
+	,uint _ldi_dw
+	,real _drop_probability
+	,__global const real4* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_relu_dropout(
+		_input_M,_input_N,_result_N
+		,_result_dw,_result,_rand_data,_filter_t
+		,_ldr_dw,_ldr,_ldrd,_ldf_t
+		,_drop_probability
+		,&coord,&c0,&c1,&c2,&c3
+		);
+	gemm_save(_input_dw,_ldi_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_dw_fc_layer_dropout(
+	uint _input_M
+	,uint _input_N
+	,uint _result_N
+	,__global const real4* _result_dw
+	,__global const real8* _filter_t
+	,__global real8* _input_dw
+	,uint _ldr_dw
+	,uint _ldf_t
+	,uint _ldi_dw
+	,real _drop_probability
+	,__global const real4* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_dropout(
+		_input_M,_input_N,_result_N
+		,_result_dw,_rand_data,_filter_t
+		,_ldr_dw,_ldrd,_ldf_t
+		,_drop_probability
+		,&coord,&c0,&c1,&c2,&c3
+		);
+	gemm_save(_input_dw,_ldi_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_filter_dw_fc_layer(
+	uint _filter_dw_M
+	,uint _filter_dw_N
+	,uint _input_N
+	,__global const real4* _input_t
+	,__global const real8* _result_dw
+	,__global real8* _filter_dw
+	,uint _ldi_t
+	,uint _ldr_dw
+	,uint _ldf_dw
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_filter_dw_M,_filter_dw_N,_input_N,_input_t,_result_dw,_ldi_t,_ldr_dw,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_filter_dw,_ldf_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_filter_dw_fc_layer_relu(
+	uint _filter_dw_M
+	,uint _filter_dw_N
+	,uint _input_N
+	,__global const real4* _input_t
+	,__global const real8* _result_dw
+	,__global real8* _filter_dw
+	,uint _ldi_t
+	,uint _ldr_dw
+	,uint _ldf_dw
+	,__global const real8* _result
+	,uint _ldr
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_relu1(_filter_dw_M,_filter_dw_N,_input_N,_input_t,_result_dw,_result,_ldi_t,_ldr_dw,_ldr,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_filter_dw,_ldf_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_filter_dw_fc_layer_dropout(
+	uint _filter_dw_M
+	,uint _filter_dw_N
+	,uint _input_N
+	,__global const real4* _input_t
+	,__global const real8* _result_dw
+	,__global real8* _filter_dw
+	,uint _ldi_t
+	,uint _ldr_dw
+	,uint _ldf_dw
+	,real _drop_probability
+	,__global const real8* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_dropout1(_filter_dw_M,_filter_dw_N,_input_N,_input_t,_result_dw,_rand_data,_ldi_t,_ldr_dw,_ldrd,_drop_probability,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_filter_dw,_ldf_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void backward_filter_dw_fc_layer_relu_dropout(
+	uint _filter_dw_M
+	,uint _filter_dw_N
+	,uint _input_N
+	,__global const real4* _input_t
+	,__global const real8* _result_dw
+	,__global real8* _filter_dw
+	,uint _ldi_t
+	,uint _ldr_dw
+	,uint _ldf_dw
+	,__global const real8* _result
+	,uint _ldr
+	,real _drop_probability
+	,__global const real8* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc_relu_dropout1(_filter_dw_M,_filter_dw_N,_input_N,_input_t,_result_dw,_result,_rand_data,_ldi_t,_ldr_dw,_ldr,_ldrd,_drop_probability,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_filter_dw,_ldf_dw,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_dropout_train(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	,real _drop_propability
+	,__global const real8* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_result_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	dropout_train(_rand_data,_ldrd,_drop_propability,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_dropout_run(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	,real _drop_probability
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	dropout_run(_drop_probability,&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_relu(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	relu(&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+__kernel void forward_half_tanh(
+	__global const real8* _input_w
+	,__global real8* _result_w
+	,uint _ldi
+	,uint _ldr
+	)
+{
+	real8 c0,c1,c2,c3;
+	uint4 coord = 0u;
+	load(_input_w,_ldi,&coord,&c0,&c1,&c2,&c3);
+	forward_half_tanh_for_data(&c0,&c1,&c2,&c3);
+	save(_result_w,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+__kernel void forward_single_relu(
+	__global const real8* _input_w
+	,__global real8* _result_w
+	,uint _ldi
+	,uint _ldr
+	)
+{
+	real8 c0,c1,c2,c3;
+	uint4 coord = 0u;
+	load(_input_w,_ldi,&coord,&c0,&c1,&c2,&c3);
+	relu(&c0,&c1,&c2,&c3);
+	save(_result_w,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+__kernel void backward_dw_half_tanh(
+	__global const real8* _result_dw
+	,__global const real8* _result_w
+	,__global real8* _input_dw
+	,uint _ldrdw
+	,uint _ldrw
+	,uint _ldidw
+	)
+{
+	real8 w0,w1,w2,w3;
+	uint4 coord = 0u;
+	load(_result_w,_ldrw,&coord,&w0,&w1,&w2,&w3);
+	real8 dw0,dw1,dw2,dw3;
+	load(_result_dw,_ldrdw,&coord,&dw0,&dw1,&dw2,&dw3);
+	real8 idw0,idw1,idw2,idw3;
+	backward_half_tanh(&w0,&w1,&w2,&w3,&dw0,&dw1,&dw2,&dw3,&idw0,&idw1,&idw2,&idw3);
+	save(_input_dw,_ldidw,&coord,&idw0,&idw1,&idw2,&idw3);
+}
+
+__kernel void backward_single_relu(
+	__global const real8* _result_dw
+	,__global const real8* _result_w
+	,__global real8* _input_dw
+	,uint _ldrdw
+	,uint _ldrw
+	,uint _ldidw
+	)
+{
+	real8 w0,w1,w2,w3;
+	uint4 coord = 0u;
+	load(_result_w,_ldrw,&coord,&w0,&w1,&w2,&w3);
+	real8 dw0,dw1,dw2,dw3;
+	load(_result_dw,_ldrdw,&coord,&dw0,&dw1,&dw2,&dw3);
+	real8 idw0,idw1,idw2,idw3;
+	backward_relu(&w0,&w1,&w2,&w3,&dw0,&dw1,&dw2,&dw3,&idw0,&idw1,&idw2,&idw3);
+	save(_input_dw,_ldidw,&coord,&idw0,&idw1,&idw2,&idw3);
+}	
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_relu_dropout_train(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	,real _drop_probability
+	,__global const real8* _rand_data
+	,uint _ldrd
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	relu(&c0,&c1,&c2,&c3);
+	dropout_train(_rand_data,_ldrd,_drop_probability,&coord,&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+/*__attribute__((reqd_work_group_size(8, 8, 1)))*/
+__kernel void forward_fc_layer_relu_dropout_run(
+	uint _result_M
+	,uint _result_N
+	,uint _input_N
+	,__global const real4* _input
+	,__global const real8* _filter
+	,__global real8* _result
+	,uint _ldi
+	,uint _ldf
+	,uint _ldr
+	,real _drop_probability
+	)
+{
+	real8 c0, c1, c2, c3;
+	uint4 coord = 0u;
+	gemm_calc(_result_M,_result_N,_input_N,_input,_filter,_ldi,_ldf,&coord,&c0,&c1,&c2,&c3);
+	relu(&c0,&c1,&c2,&c3);
+	dropout_run(_drop_probability,&c0,&c1,&c2,&c3);
+	gemm_save(_result,_ldr,&coord,&c0,&c1,&c2,&c3);
+}
+
+
+#define TILE_DIM 8
+
+__kernel void transpose(
+	__global const real* _input
+	,__global real* _output
+	,uint _ldi
+	,uint _ldo
+	)
+{
+	/*__local real tile[TILE_DIM*(TILE_DIM+1)];*/
+	__local real tile[TILE_DIM*TILE_DIM];
+
+	uint x = get_global_id(0);
+	uint y = get_global_id(1);
+	uint lx = get_local_id(0);
+	uint ly = get_local_id(1);
+
+	/*tile[ly*(TILE_DIM+1)+lx] = _input[y*_ldi+x];*/
+	tile[ly*TILE_DIM+lx] = _input[y*_ldi+x];
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	x = get_group_id(1)*TILE_DIM + lx;
+	y = get_group_id(0)*TILE_DIM + ly;
+	/*_output[y*_ldo+x] = tile[lx*(TILE_DIM+1)+ly];*/
+	_output[y*_ldo+x] = tile[lx*TILE_DIM+ly];
+}
+
+__kernel void batch_SGD_trainer_momentum(
+	__global real* _filter
+	,__global const real* _filter_dw
+	,__global real* _last_pg
+	,real _learning_rate
+	,real _momentum
+	,real _l1_decay
+	,real _l2_decay
+	,uint _batch_size
+	,uint _ldf
+	,uint _ldf_dw
+	,uint _ldlast_pg
+	)
+{
+	uint x = get_global_id(0);
+	uint y = get_global_id(1);
+	real filter_w = _filter[y*_ldf+x];
+	real filter_dw = _filter_dw[y*_ldf_dw+x];
+	real last_pg = _last_pg[y*_ldlast_pg+x];
+	real l1grad = _l1_decay*(filter_w>0?1:-1);
+	real l2grad = _l2_decay*filter_w;
+	real dir = -_learning_rate*(l2grad+l1grad+filter_dw)/_batch_size;
+	real dir_adj = _momentum*last_pg + (1.0f - _momentum)*dir;
+	_filter[y*_ldf+x] = filter_w + dir_adj;
+	_last_pg[y*_ldlast_pg+x] = dir_adj;
+}
+
+__kernel void batch_SGD_trainer(
+	__global real* _filter
+	,__global const real* _filter_dw
+	,real _learning_rate
+	,real _l1_decay
+	,real _l2_decay
+	,uint _batch_size
+	,uint _ldf
+	,uint _ldf_dw
+	)
+{
+	uint x = get_global_id(0);
+	uint y = get_global_id(1);
+	real filter_w = _filter[y*_ldf+x];
+	real filter_dw = _filter_dw[y*_ldf_dw+x];
+	real l1grad = _l1_decay*(filter_w>0?1:-1);
+	real l2grad = _l2_decay*filter_w;
+	_filter[y*_ldf+x] = filter_w - _learning_rate*(l2grad+l1grad+filter_dw)/_batch_size;
+}
+
+__kernel void copy_encoder_to_prob(
+	__global const real* _input
+	,__global const real* _output
+	,__global real* _prob
+	,uint _element_size
+	,uint _input_element_count
+	,uint _prob_element_count
+	,uint _ld_input
+	,uint _ld_prob
+	) 
+{
+	uint n = get_global_id(0);
+	uint m = get_global_id(1);
+
+	uint offs1 = m*_ld_input+n;
+	real inpval = _input[offs1];
+	real outval = _output[offs1];
+	
+	uint size_orig = _element_size*_input_element_count;
+	uint size_prob = _element_size*_prob_element_count;
+	uint offs2 = m*size_orig + n;
+	uint m2 = offs2/size_prob;
+	uint n2 = offs2%size_prob;
+	uint shift = _element_size*_prob_element_count;
+	_prob[m2*_ld_prob+n2] = inpval;
+	_prob[m2*_ld_prob+n2+shift] = outval;
+}
+
