@@ -5,6 +5,7 @@
 #include <utils/convert.h>
 #include <utils/strconv.h>
 #include <utils/cyclicbuffer.h>
+#include <utils/trace.h>
 
 #include "factor.h"
 #include "range.h"
@@ -900,6 +901,8 @@ namespace cvs
 			,const CString& _column_delim = _T(";")
 			,const CString& _new_line_delim = _T("\n")
 			,UINT _codepage = CP_UTF8
+			,const CString& _fmt = CString()
+			,ITraceOutput* _output = NULL
 			)
 		{
 			FileTokenizer lines(_file_name,_new_line_delim);
@@ -915,6 +918,7 @@ namespace cvs
 				string_converter<WCHAR,TCHAR> linet((LPWSTR)linew,linew.get_length(),CP_ACP);
 				CString line((LPCTSTR)linet,linet.get_length());
 				set_line(rowi,line,_use_quotes,_quote,_column_delim);
+				if(NOT_NULL(_output)) _output->process(_fmt,rowi);
 			}
 			lines.close();
 			max_row = rowi;
@@ -927,6 +931,8 @@ namespace cvs
 			,TCHAR _quote = _T('\"')
 			,const CString& _column_delim = _T(";")
 			,const CString& _new_line_delim = _T("\n")
+			,const CString& _fmt = CString()
+			,ITraceOutput* _output = NULL
 			)
 		{
 			CFile file;
@@ -958,6 +964,7 @@ namespace cvs
 				}
 				line += _new_line_delim;
 				file.Write((LPCTSTR)line,line.GetLength()*sizeof(TCHAR));
+				if(NOT_NULL(_output)) _output->process(_fmt,i);
 			}
 			file.Close();
 			return true;
